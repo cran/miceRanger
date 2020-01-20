@@ -1,6 +1,6 @@
 Package: miceRanger
 Title: Multiple Imputation by Chained Equations with Random Forests
-Version: 1.1.0
+Version: 1.2.0
 Authors@R: 
     person(given = "Sam",
            family = "Wilson",
@@ -16,17 +16,19 @@ Description: Multiple Imputation has been shown to
   They have the added benefits of returning out of bag 
   error and variable importance estimates, as well as 
   being simple to run in parallel.
+URL: https://github.com/FarrellDay/miceRanger
+BugReports: https://github.com/FarrellDay/miceRanger/issues
 Encoding: UTF-8
 LazyData: true
 License: MIT + file LICENSE
 Depends: R (>= 3.5.0)
-Imports: ranger, data.table, stats, FNN, ggplot2, gridExtra, crayon,
-        corrplot, ggpubr, DescTools, foreach
-Suggests: knitr, rmarkdown, doParallel
+Imports: ranger, data.table, stats, FNN, ggplot2, crayon, corrplot,
+        ggpubr, DescTools, foreach
+Suggests: knitr, rmarkdown, doParallel, testthat (>= 2.1.0)
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2020-01-14 14:43:41 UTC; SamWilson
+Packaged: 2020-01-20 21:09:45 UTC; SamWilson
 Author: Sam Wilson [aut, cre]
 Repository: CRAN
-Date/Publication: 2020-01-19 16:20:06 UTC
+Date/Publication: 2020-01-20 23:40:02 UTC

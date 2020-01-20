@@ -19,13 +19,13 @@ variable names, or one of 'allNumeric' or 'allCategorical'}
 
 \item{pointSize}{passed to \code{geom_point}, allows user to change dot size.}
 
-\item{...}{other arguments passed to \code{grid.arrange()}}
+\item{...}{other arguments passed to \code{ggarrange()}}
 }
 \value{
-nothing.
+an object of class \code{ggarrange}.
 }
 \description{
-Create a impDefs object, which contains information about the imputation process.
+Plot the Out Of Bag model error for specified variables over all tierations.
 }
 \examples{
 data("sampleMiceDefs")

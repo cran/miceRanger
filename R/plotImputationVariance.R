@@ -8,14 +8,12 @@
 #' @param miceObj an object of class miceDefs, created by the miceRanger function.
 #' @param vars the variables you want to plot. Default is to plot all variables. Can be a vector of
 #' variable names, or one of 'allNumeric' or 'allCategorical'
-#' @param title optional title for the arranged grob.
 #' @param monteCarloSimulations The number of simulations to run to determine the distribution of
 #' unique categorical levels drawn if the draws were completely random.
-#' @param ... additional parameters passed to ggarrange when combining numeric and categorical
-#' plots.
+#' @param ... additional parameters passed to \code{ggarrange}.
 #' @importFrom data.table data.table
 #' @importFrom ggplot2 position_nudge geom_area xlab ylab ggtitle scale_x_discrete geom_vline
-#' @return nothing.
+#' @return an object of class \code{ggarrange}.
 #' @examples 
 #' data("sampleMiceDefs")
 #' plotImputationVariance(sampleMiceDefs)
@@ -23,19 +21,31 @@
 plotImputationVariance <- function(
     miceObj
   , vars = names(miceObj$callParams$vars)
-  , title=NULL
   , monteCarloSimulations = 10000
   , ...
 ) {
 
-  if (vars[[1]] == 'allCategorical') vars <- names(miceObj$newClasses[miceObj$newClasses == "factor"])
-  if (vars[[1]] == 'allNumeric') vars <- names(miceObj$newClasses[miceObj$newClasses != "factor"])
+  # Get variable and class information from miceObj
+  varn <- names(miceObj$callParams$vars)
+  newClasses <- miceObj$newClasses[varn]
+  m <- miceObj$callParams$m
   
-  if (miceObj$callParams$m == 1) stop("There is only 1 dataset, cannot plot variance between datasets.")
-  if (miceObj$callParams$m == 2) message("There are only 2 datasets, plotting density of difference between imputed values.")
+  # Change vars if needed
+  if (vars[[1]] == 'allCategorical' & length(vars) == 1) {
+    vars <- names(newClasses[newClasses == "factor"])
+  } else if (vars[[1]] == 'allNumeric' & length(vars) == 1) {
+    vars <- names(newClasses[newClasses != "factor"])
+  }
   
-  facVars <- miceObj$newClasses[vars][miceObj$newClasses[vars] == "factor"]
-  numVars <- miceObj$newClasses[vars][miceObj$newClasses[vars] != "factor"]
+  # Checks
+  if (m == 1) stop("There is only 1 dataset, cannot plot variance between datasets.")
+  if (m == 2) message("There are only 2 datasets, plotting density of difference between imputed values.")
+  if (any(!vars %in% varn)) stop("Specified variables were not imputed.")
+  
+  # Only keep class information about variables we are plotting:
+  newClasses <- newClasses[vars]
+  facVars <- newClasses[newClasses == "factor"]
+  numVars <- newClasses[newClasses != "factor"]
   
   
   getVar <- function(finalImps,m,v) {
@@ -55,7 +65,7 @@ plotImputationVariance <- function(
     facList <- lapply(
       names(facVars)
     , function(v) {
-      if(sum(miceObj$naWhere[,v]) ==1 ) stop(paste0(v," was only imputed once. Cannot plot density of the variance of a single imputation."))
+      if(sum(miceObj$naWhere[,v]) == 1) stop(paste0(v," was only imputed once. Cannot plot density of the variance of a single imputation."))
       imps <- as.data.table(lapply(miceObj$finalImps,function(x) x[[v]]))
       
       toPlot <- getVar(
@@ -88,6 +98,8 @@ plotImputationVariance <- function(
       }
     )
     
+    facList <- ggarrange(plotlist = facList,common.legend = TRUE,legend="bottom")
+    
     } else facList <- NULL
   
   
@@ -103,6 +115,8 @@ plotImputationVariance <- function(
             , miceObj$callParams$m
             , v=v
           )
+          
+          # Find datapoint closest to quantile.
           origDist <- sd(miceObj$data[!miceObj$naWhere[,v],get(v)])
           qtile <- round(mean(toPlot <= origDist)*100)
           dens <- density(toPlot)
@@ -125,21 +139,12 @@ plotImputationVariance <- function(
         
         }
       )
+      
+      numList <- ggarrange(plotlist = numList)
+      
     } else numList <- NULL
   
-  if (length(facList) == 0) {
-    ggarrange(plotlist=numList,...)
-  } else if (length(numList) == 0) {
-    ggarrange(plotlist=facList,common.legend=TRUE,...)
-  } else {
-    ggarrange(
-      plotlist=list(
-        if (length(facList) > 0) ggarrange(plotlist=facList,common.legend=TRUE) else NULL
-        , if (length(numList) > 0) ggarrange(plotlist=numList) else NULL
-      )
-      , ...
-    )
-  }
+  ggarrange(numList,facList,...)
   
 }
 utils::globalVariables(c("x","..count.."))

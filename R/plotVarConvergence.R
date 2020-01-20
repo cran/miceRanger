@@ -1,15 +1,16 @@
 #' @title plotVarConvergence
-#' @description Create a impDefs object, which contains information about the imputation process.
+#' @description Plot the evolution of the dispersion and center of each variable.
+#' For numeric variables, the center is the mean, and the dispersion is the standard deviation.
+#' For categorical variables, the center is the mode, and the dispersion is the entropy of the distribution.
 #' @param miceObj an object of class miceDefs, created by the miceRanger function.
 #' @param vars the variables you want to plot. Default is to plot all variables. Can be a vector of
 #' variable names, or one of 'allNumeric' or 'allCategorical'
-#' @param ... options passed to \code{grid.arrange()}
-#' @importFrom gridExtra grid.arrange arrangeGrob
+#' @param ... options passed to \code{ggarrange()}
 #' @importFrom ggplot2 ggplot geom_point ylab aes theme aes_string element_blank geom_errorbar
 #' @importFrom stats sd
-#' @importFrom ggpubr ggarrange theme_classic2
+#' @importFrom ggpubr ggarrange theme_classic2 annotate_figure text_grob
 #' @importFrom DescTools Entropy
-#' @return nothing.
+#' @return an object of class \code{ggarrange}.
 #' @examples 
 #' data("sampleMiceDefs")
 #' plotVarConvergence(sampleMiceDefs)
@@ -20,14 +21,15 @@ plotVarConvergence <- function(
   , ...
 ) {
   
-  if (miceObj$callParams$maxiter == 1) stop("There is only 1 iteration, need at least 2 iterations to plot convergence.")
-  
-  if (vars[[1]] == 'allCategorical') vars <- names(miceObj$newClasses[miceObj$newClasses == "factor"])
-  if (vars[[1]] == 'allNumeric') vars <- names(miceObj$newClasses[miceObj$newClasses != "factor"])
-  
   selTheme <- theme_classic2()
   m <- miceObj$callParams$m
   maxiter <- miceObj$callParams$maxiter
+  varn <- names(miceObj$callParams$vars)
+  newClasses <- miceObj$newClasses[varn]
+  
+  if (maxiter == 1) stop("There is only 1 iteration, need at least 2 iterations to plot convergence.")
+  if (vars[[1]] == 'allCategorical') vars <- names(newClasses[newClasses == "factor"])
+  if (vars[[1]] == 'allNumeric') vars <- names(newClasses[newClasses != "factor"])
   
   pList <- lapply(
       vars
@@ -67,7 +69,7 @@ plotVarConvergence <- function(
       centerMetric <- melt(centerMetric,id.vars = "iteration")
       
       return(
-        arrangeGrob(
+        annotate_figure(
           ggarrange(
               ggplot(varMetric,aes_string(x="iteration",y="value",group="variable")) +
                 geom_line() +
@@ -83,12 +85,13 @@ plotVarConvergence <- function(
                     ylab(if (varClass == "factor") "Mode Perc" else "Mean") +
                     selTheme
             ),align="v",nrow=2,heights=c(0.8,1)
-          ),left=var
+          )
+        , left = text_grob(var,rot=90)
         )
       )
     }
   )
-  
-  grid.arrange(grobs = pList,...)
+
+  ggarrange(plotlist = pList,...)
 
 }

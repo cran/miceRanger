@@ -12,13 +12,15 @@ plotVarConvergence(miceObj, vars = names(miceObj$callParams$vars), ...)
 \item{vars}{the variables you want to plot. Default is to plot all variables. Can be a vector of
 variable names, or one of 'allNumeric' or 'allCategorical'}
 
-\item{...}{options passed to \code{grid.arrange()}}
+\item{...}{options passed to \code{ggarrange()}}
 }
 \value{
-nothing.
+an object of class \code{ggarrange}.
 }
 \description{
-Create a impDefs object, which contains information about the imputation process.
+Plot the evolution of the dispersion and center of each variable.
+For numeric variables, the center is the mean, and the dispersion is the standard deviation.
+For categorical variables, the center is the mode, and the dispersion is the entropy of the distribution.
 }
 \examples{
 data("sampleMiceDefs")

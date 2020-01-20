@@ -7,7 +7,6 @@
 plotImputationVariance(
   miceObj,
   vars = names(miceObj$callParams$vars),
-  title = NULL,
   monteCarloSimulations = 10000,
   ...
 )
@@ -18,16 +17,13 @@ plotImputationVariance(
 \item{vars}{the variables you want to plot. Default is to plot all variables. Can be a vector of
 variable names, or one of 'allNumeric' or 'allCategorical'}
 
-\item{title}{optional title for the arranged grob.}
-
 \item{monteCarloSimulations}{The number of simulations to run to determine the distribution of
 unique categorical levels drawn if the draws were completely random.}
 
-\item{...}{additional parameters passed to ggarrange when combining numeric and categorical
-plots.}
+\item{...}{additional parameters passed to \code{ggarrange}.}
 }
 \value{
-nothing.
+an object of class \code{ggarrange}.
 }
 \description{
 plots the distribution of the difference between datasets of the imputed values.
