@@ -1,33 +1,26 @@
-## ----eval=TRUE,echo=FALSE,fig.align='center',out.width = "851px",out.height="462px"----
-knitr::include_graphics("MICEalgorithm.png")
-
-## ----eval=TRUE,echo=FALSE,fig.align='center',out.width = "793px",out.height="278px"----
-knitr::include_graphics("PMM.png")
-
-## ----message=FALSE------------------------------------------------------------
+## ----amputeData,message=FALSE-------------------------------------------------
 require(miceRanger)
-require(data.table)
 set.seed(1)
 
 # Load data
 data(iris)
-setDT(iris)
 
 # Ampute the data. iris contains no missing values by default.
 ampIris <- amputeData(iris,perc=0.25)
 head(ampIris,10)
 
-## ----message=FALSE------------------------------------------------------------
-# Perform mice, return 8 datasets. 
+## ----simpleMice,message=FALSE-------------------------------------------------
+# Perform mice, return 6 datasets. 
 seqTime <- system.time(
   miceObj <- miceRanger(
       ampIris
     , m=6
+    , returnModels = TRUE
     , verbose=FALSE
   )
 )
 
-## ----message=FALSE------------------------------------------------------------
+## ----parMice,message=FALSE----------------------------------------------------
 library(doParallel)
 
 # Set up back ends.
@@ -46,37 +39,42 @@ parTime <- system.time(
 stopCluster(cl)
 registerDoSEQ()
 
-## -----------------------------------------------------------------------------
+## ----parFaster----------------------------------------------------------------
 perc <- round(1-parTime[[3]]/seqTime[[3]],2)*100
 print(paste0("The parallel process ran ",perc,"% faster using 2 R back ends."))
 
-## -----------------------------------------------------------------------------
+## ----addToMice----------------------------------------------------------------
 miceObj <- addIterations(miceObj,iters=2,verbose=FALSE)
 miceObj <- addDatasets(miceObj,datasets=1,verbose=FALSE)
 
-## -----------------------------------------------------------------------------
-plotDistributions(miceObj,vars='allNumeric')
+## ----customSetup--------------------------------------------------------------
+v <- list(
+  Sepal.Width = c("Sepal.Length","Petal.Width","Species")
+  , Sepal.Length = c("Sepal.Width","Petal.Width")
+  , Species = c("Sepal.Width")
+)
+pmm <- c(
+    Sepal.Width = "meanMatch"
+  , Sepal.Length = "value"
+  , Species = "meanMatch"
+)
+
+miceObjCustom <- miceRanger(
+    ampIris
+  , vars = v
+  , valueSelector = pmm
+  , verbose=FALSE
+)
 
 ## -----------------------------------------------------------------------------
-plotCorrelations(miceObj,vars='allNumeric')
+newDat <- amputeData(iris)
+newImputed <- impute(newDat,miceObj,verbose=FALSE)
 
-## -----------------------------------------------------------------------------
-plotVarConvergence(miceObj,vars='allNumeric')
-
-## -----------------------------------------------------------------------------
-plotModelError(miceObj,vars='allNumeric')
-
-## -----------------------------------------------------------------------------
-plotVarImportance(miceObj)
-
-## ---- fig.height = 6, fig.width = 6-------------------------------------------
-plotImputationVariance(miceObj,ncol=1)
-
-## -----------------------------------------------------------------------------
+## ----completeData-------------------------------------------------------------
 dataList <- completeData(miceObj)
 head(dataList[[1]],10)
 
-## ----message=FALSE,echo=FALSE,fig.height = 6,warning=FALSE--------------------
+## ----impAccuracy,message=FALSE,echo=FALSE,fig.height = 6,warning=FALSE--------
 require(ggplot2)
 require(ggpubr)
 
@@ -87,7 +85,7 @@ plotList <- lapply(
   , function(x) {
     missIndx <- is.na(ampIris[,get(x)])
     impVsAmp <- data.table(
-      originalData = iris[missIndx,get(x)]
+      originalData = iris[missIndx,x]
       , imputedData = dataList[[1]][missIndx,get(x)]
       , Species = iris[missIndx,]$Species
     )
@@ -103,8 +101,6 @@ plotList <- lapply(
 arranged <- ggarrange(
     plotlist = plotList
   , common.legend = TRUE
-  #, heights = c(4,4)
-  #, nrow = 2
 )
 annotate_figure(
     arranged
@@ -112,7 +108,6 @@ annotate_figure(
         "Original Data Compared to Imputed Value"
       , face = "bold"
       , size = 14
-      #, vjust = 0.25
     )
 )
 

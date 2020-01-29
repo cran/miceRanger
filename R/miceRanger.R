@@ -1,18 +1,19 @@
-#' @title miceRanger
-#' @description Performs multiple imputation by chained random forests.
+#' miceRanger: Fast Imputation with Random Forests
+#' 
+#' Performs multiple imputation by chained random forests.
 #' Returns a miceDefs object, which contains information about the imputation process.
-#' @param data The data to be imputed. Can contain variables that are not going to be imputed, which you
-#' want to use as features.
-#' @param m The number of datasets to produce
+#' 
+#' @param data The data to be imputed.
+#' @param m The number of datasets to produce.
 #' @param maxiter The number of iterations to run for each dataset.
 #' @param vars Specifies which and how variables should be imputed. Can be specified in 3 different ways:
 #' \itemize{
 #'   \item {<missing>} If not provided, all columns will be imputed using all columns. If
 #'   a column contains no missing values, it will still be used as a feature to impute missing columns.
-#'   \item {<Character Vector>} If a character vector of column names is passed, these columns will
+#'   \item {<character vector>} If a character vector of column names is passed, these columns will
 #'   be imputed using all available columns in the dataset. The order of this vector will determine the 
 #'   order in which the variables are imputed.
-#'  \item {<Named List of Character Vectors>} Predictors can be specified for each variable with named list. 
+#'  \item {<named list of character vectors>} Predictors can be specified for each variable with named list. 
 #'  List names are the variables to impute. Elements in the vectors should be features used to 
 #'  impute that variable. The order of this list will determine the order in which the variables are imputed.
 #' }
@@ -20,13 +21,14 @@
 #' Can be "meanMatching", "value", or a named vector containing a mixture of those values.
 #' If a named vector is passed, the names must equal the variables to be imputed specified in \code{vars}.
 #' @param meanMatchCandidates Used for regression. Specifies the number of candidate values 
-#' If a variable is being imputed using mean matching,
-#' this 
+#' which are selected from in the mean matching algorithm.
+#' @param returnModels Logical. Should the final model for each variable be returned? Set to \code{TRUE}
+#' to use the CHANGE function, which allows imputing new samples without having to run \code{miceRanger} again.
 #' @param parallel Should the process run in parallel? Usually not necessary. This process will 
 #' take advantage of any cluster set up when \code{miceRanger} is called.
 #' @param verbose should progress be printed?
 #' @param ... other parameters passed to \code{ranger()} to control forest growth.
-#' @importFrom data.table as.data.table rbindlist setcolorder setnames copy setDT
+#' @importFrom data.table as.data.table rbindlist setcolorder setnames copy setDT set
 #' @importFrom ranger ranger
 #' @importFrom stats predict
 #' @importFrom crayon make_style
@@ -34,26 +36,34 @@
 #' @return a miceDefs object, containing the following:
 #' \item{callParams}{The parameters of the object.}
 #' \item{data}{The original data provided by the user.}
-#' \item{naWhere}{Logical index of missing data, having the same dimensions as data.}
+#' \item{naWhere}{Logical index of missing data, having the same dimensions as \code{data}.}
 #' \item{missingCounts}{The number of missing values for each variable}
 #' \item{rawClasses}{The original classes provided in \code{data}}
-#' \item{newClasses}{The new classes of the returned dataset. Classes can be changed if necessary.}
+#' \item{newClasses}{The new classes of the returned data.}
 #' \item{allImps}{The imputations of all variables at each iteration, for each dataset.}
 #' \item{allImport}{The variable importance metrics at each iteration, for each dataset.}
 #' \item{allError}{The OOB model error for all variables at each iteration, for each dataset.}
 #' \item{finalImps}{The final imputations for each dataset.}
 #' \item{finalImport}{The final variable importance metrics for each dataset.}
 #' \item{finalError}{The final model error for each variable in every dataset.}
+#' \item{finalModels}{Only returned if \code{returnModels = TRUE}. A list of \code{ranger} random forests for each dataset/variable.}
 #' \item{imputationTime}{The total time in seconds taken to create the imputations for the 
 #'   specified datasets and iterations. Does not include any setup time.}
+#'   
+#' @section Vignettes:
+#' 
+#' It is highly recommended to visit the \href{https://github.com/farrellday/miceRanger}{GitHub README} 
+#' for a thorough walkthrough of miceRanger's capabilities, as well as performance benchmarks.
+#' 
+#' Several vignettes are also available on \href{https://cran.r-project.org/package=miceRanger}{miceRanger's listing}
+#' on the CRAN website.
 #' @examples
 #' # Using Mice to create 5 imputed datasets
 #' data(iris)
-#' 
 #' ampIris <- amputeData(iris)
 #' 
 #' miceObj <- miceRanger(
-#'   ampIris
+#'     ampIris
 #'   , m = 2
 #'   , maxiter = 2
 #'   , verbose=FALSE
@@ -71,14 +81,12 @@
 #' registerDoParallel(cl)
 #' 
 #' # Perform mice 
-#' parTime <- system.time(
-#'   miceObjPar <- miceRanger(
+#' miceObjPar <- miceRanger(
 #'     ampIris
-#'     , m=2
-#'     , maxiter = 2
-#'     , parallel = TRUE
-#'     , verbose = FALSE
-#'   )
+#'   , m = 2
+#'   , maxiter = 2
+#'   , parallel = TRUE
+#'   , verbose = FALSE
 #' )
 #' stopCluster(cl)
 #' registerDoSEQ()
@@ -91,6 +99,7 @@ miceRanger <- function(
   , vars
   , valueSelector = c("meanMatch","value")
   , meanMatchCandidates = pmax(round(nrow(data)*0.01),5)
+  , returnModels = FALSE
   , parallel = FALSE
   , verbose = TRUE
   , ...
@@ -162,6 +171,20 @@ miceRanger <- function(
   # All vars
   vara <- unique(c(varn,varp))
   
+  # These variables will be filled in randomly, and then remain 
+  # unchanged throughout the process. This is usually not a good idea.
+  leftOut <- !varp %in% varn & colSums(naWhere[,varp]) > 0
+  if (any(leftOut) & verbose) {
+    leftOut <- names(leftOut[leftOut])
+    message(
+      paste0(
+        paste0(leftOut,collapse = ",")
+        ," are designated as predictors, but will not be imputed even though they contain missing values."
+        ," This may cause imputations to be biased, or otherwise non-optimal."
+      )
+    )
+  }
+  
   # These characters in variable names cause problems when plotting:
   specCharsExist <- sapply(
       c(" ","-","/","=","!","@","%","<",">")
@@ -198,11 +221,7 @@ miceRanger <- function(
 
   
   # Fill missing data with random samples from the nonmissing data.
-  fillMissing <- function(vec) {
-    vec[is.na(vec)] <- sample(vec[!is.na(vec)],size = sum(is.na(vec)),replace=TRUE)
-    return(vec)
-  }
-  dat[,(vara) := lapply(.SD,fillMissing),.SDcols=vara]
+  for (v in vara) set(dat,i=which(naWhere[,v]),j=v,value=fillMissing(sum(naWhere[,v]),dat[[v]]))
   
   # Keep track of our new classes and the type of model.
   newClasses <- sapply(dat[,vara,with=FALSE],class)
@@ -228,26 +247,39 @@ miceRanger <- function(
     , oldm = 0
     , oldIt = 0
     , startTime
+    , returnModels
     , ...
   )
   endTime <- Sys.time()
-
+  
+  # Foreach won't combine into a list if m = 1.
+  # This keeps the extraction below much more simple.
+  if (m == 1) datSetList <- list(Dataset_1 = datSetList)
+  
   # See if foreach returned any errors.
   errorIndx <- sapply(datSetList,function(x) any(class(x) %in% c("simpleError","error")))
   if (any(errorIndx)) {
-    stop(paste0("Evaluation failed with error:",as.character(datSetList[errorIndx][[1]])))
+    stop(
+      paste0(
+        "Evaluation failed with error <",as.character(datSetList[errorIndx][[1]])
+        ,">. This is probably our fault - please open an issue at https://github.com/FarrellDay/miceRanger/issues"
+        ," with a reproduceable example."
+      )
+    )
   }
   
   # Extract parts we are interested in from returned list.
-  allImps <- if (m>1) lapply(datSetList,function(x) x$dsImps) else list(datSetList$dsImps)
-  allImport <- if (m>1) lapply(datSetList,function(x) x$dsImport) else list(datSetList$dsImport)
-  allError <- if (m>1) lapply(datSetList,function(x) x$dsError) else list(datSetList$dsError)
+  allImps <- lapply(datSetList,function(x) x$dsImps)
+  allImport <- lapply(datSetList,function(x) x$dsImport)
+  allError <- lapply(datSetList,function(x) x$dsError)
+  finalModels <- lapply(datSetList,function(x) x$dsMod)
   rm(datSetList)
   
   # And finally, adjust names.
   names(allImps) <- paste0("Dataset_",1:m)
   names(allImport) <- paste0("Dataset_",1:m)
   names(allError) <- paste0("Dataset_",1:m)
+  names(finalModels) <- paste0("Dataset_",1:m)
   
   # Take necessary info from last iteration.
   finalImps <- lapply(allImps,function(x) x[[length(x)]])
@@ -264,6 +296,7 @@ miceRanger <- function(
   miceDefs$callParams$vars <- vars
   miceDefs$callParams$valueSelector <- valueSelector
   miceDefs$callParams$meanMatchCandidates <- meanMatchCandidates
+  miceDefs$callParams$returnModels <- returnModels
   miceDefs$data <- data
   miceDefs$naWhere <- naWhere
   miceDefs$missingCounts <- missingCounts
@@ -275,6 +308,7 @@ miceRanger <- function(
   miceDefs$finalImps <- finalImps
   miceDefs$finalImport <- finalImport
   miceDefs$finalError <- finalError
+  if (returnModels) miceDefs$finalModels <- finalModels
   miceDefs$imputationTime <- round(as.numeric(difftime(endTime,startTime,units="secs")))
   
   class(miceDefs) <- "miceDefs"

@@ -1,6 +1,6 @@
 Package: miceRanger
 Title: Multiple Imputation by Chained Equations with Random Forests
-Version: 1.2.0
+Version: 1.3.0
 Authors@R: 
     person(given = "Sam",
            family = "Wilson",
@@ -28,7 +28,7 @@ Suggests: knitr, rmarkdown, doParallel, testthat (>= 2.1.0)
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2020-01-20 21:09:45 UTC; SamWilson
+Packaged: 2020-01-29 14:25:20 UTC; SamWilson
 Author: Sam Wilson [aut, cre]
 Repository: CRAN
-Date/Publication: 2020-01-20 23:40:02 UTC
+Date/Publication: 2020-01-29 14:50:02 UTC
