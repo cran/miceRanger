@@ -20,7 +20,13 @@
 #' @param iterations The number of iterations to run. 
 #' By default, the same as the number of iterations currently in \code{miceObj}.
 #' @param verbose should progress be printed?
-#' @return an object of class impDefs, which contains information about the imputation process.
+#' @return An object of class impDefs, which contains information about the imputation process.
+#' \item{callParams}{The parameters of the object.}
+#' \item{data}{The original data provided by the user.}
+#' \item{naWhere}{Logical index of missing data, having the same dimensions as \code{data}.}
+#' \item{missingCounts}{The number of missing values for each variable.}
+#' \item{imputedData}{A list of imputed datasets.}
+#' 
 #' @examples
 #' ampDat <- amputeData(iris)
 #' miceObj <- miceRanger(ampDat,1,1,returnModels=TRUE,verbose=FALSE)
@@ -55,6 +61,7 @@ impute <- function(
   vara <- unique(c(varn,varp))
   valueSelector <- miceObj$callParams$valueSelector
   returnModels <- miceObj$callParams$returnModels
+  meanMatchCandidates <- miceObj$callParams$meanMatchCandidates
   modelTypes <- ifelse(miceObj$newClasses[varn] == "factor","Classification","Regression")
   
   if (!all(vara %in% names(data))) stop("Columns used in the original imputation process are missing from this dataset.")
@@ -143,9 +150,11 @@ impute <- function(
             , compDat
           )$predictions
           prior <- compDat[[impVar]]
+          mmc <- meanMatchCandidates[[impVar]] 
         } else {
           priorPreds <- NULL
           prior <- NULL
+          mmc <- NULL
         }
         
         # Update values in corresponding data.table
@@ -157,7 +166,7 @@ impute <- function(
               pred = pred
             , modelType = modelTypes[[impVar]]
             , valueSelector = valueSelector[[impVar]]
-            , meanMatchCandidates = miceObj$callParams$meanMatchCandidates
+            , meanMatchCandidates = mmc
             , prior = prior
             , priorPreds = priorPreds
           )

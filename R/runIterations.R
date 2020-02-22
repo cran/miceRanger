@@ -11,9 +11,7 @@ runIterations <- function(
   , meanMatchCandidates
   , modelTypes
   , verbose
-  , ParMethod
   , parallel
-  , mco
   , miceObj = NULL
   , oldm = 0
   , oldIt = 0
@@ -22,19 +20,20 @@ runIterations <- function(
   , ...
 ) {
   
-  # Define parallelization setup. Consider exporting entire
-  # environment to this function in the future.
-  ParMethod <- function(x) if(x) {`%dopar%`} else {`%do%`}
-  `%op%` <- ParMethod(parallel)
   ds <- crayon::make_style("#4B8E78")
   varn <- names(vars)
   varp <- unique(unlist(vars))
   vara <- unique(c(varn,varp))
   
+  # Define parallelization setup
+  `%op%` <- ParMethod(parallel)
+  if (parallel & (getDoParWorkers() == 1)) stop("parallel is set to TRUE but no back end is registered.")
+  if (!parallel & (getDoParWorkers() > 1)) if (verbose) message("parallel is set to FALSE but there is a back end registered. Process will not be run in parallel.\n")
+  
   # Run iterations
   dsl <- foreach(
       dataSet = 1:m
-    , .options.multicore = mco
+    , .options.multicore = list(preschedule=FALSE)
     , .combine = list
     , .multicombine = TRUE
     , .inorder = FALSE
@@ -86,13 +85,18 @@ runIterations <- function(
         # Keep the model if this is the last iteration.
         if (iter == maxiter & returnModels) dsMod[[impVar]] <- model
         
+        mmc <- if (modelTypes[impVar] == "Regression" & valueSelector[impVar] == "meanMatch")  {
+          meanMatchCandidates[[impVar]] 
+        } else NULL
+          
+        
         # Extract information we need from the model.
         pred <- predict(model,dats)$predictions
         iterImps[[impVar]] <- imputeFromPred(
             pred = if (returnProb) pred[missIndx,] else pred[missIndx]
           , modelTypes[impVar]
           , valueSelector[impVar]
-          , meanMatchCandidates
+          , mmc
           , prior = dats[!missIndx][,get(impVar)]
           , priorPreds = if (returnProb) pred[!missIndx,] else pred[!missIndx]
         )
