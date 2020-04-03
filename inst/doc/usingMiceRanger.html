@@ -11,7 +11,7 @@
 
 <meta name="author" content="Sam Wilson" />
 
-<meta name="date" content="2020-02-21" />
+<meta name="date" content="2020-04-03" />
 
 <title>Imputing Missing Data with miceRanger</title>
 
@@ -365,7 +365,7 @@ summary {
 
 <h1 class="title toc-ignore">Imputing Missing Data with miceRanger</h1>
 <h4 class="author">Sam Wilson</h4>
-<h4 class="date">2020-02-21</h4>
+<h4 class="date">2020-04-03</h4>
 
 </div>
 
@@ -412,9 +412,9 @@ seqTime &lt;- system.time(
 <div id="running-in-parallel" class="section level3">
 <h3>Running in Parallel</h3>
 <p>Running in parallel is usually not necessary. By default, <code>ranger</code> will use all available cores, and <code>data.table</code>s assignment by reference is already lightning fast. However, in certain cases, we can still save some time by sending each dataset imputation to a different R back end. To do this, we need to set up a core cluster and use <code>parallel = TRUE</code>. <em>This causes the dataset to be copied for each back end, which may eat up your RAM. If the process is memory constrained, this can cause the parallel implementation to actually take more time than the sequential implementation.</em></p>
-<pre class="r"><code>library(doParallel)
-
-# Set up back ends.
+<pre class="r"><code>library(doParallel)</code></pre>
+<pre><code>## Warning: package &#39;foreach&#39; was built under R version 3.6.3</code></pre>
+<pre class="r"><code># Set up back ends.
 cl &lt;- makeCluster(2)
 registerDoParallel(cl)
 
@@ -432,7 +432,7 @@ registerDoSEQ()</code></pre>
 <p>Let’s take a look at the time we saved running in parallel:</p>
 <pre class="r"><code>perc &lt;- round(1-parTime[[3]]/seqTime[[3]],2)*100
 print(paste0(&quot;The parallel process ran &quot;,perc,&quot;% faster using 2 R back ends.&quot;))</code></pre>
-<pre><code>## [1] &quot;The parallel process ran 4% faster using 2 R back ends.&quot;</code></pre>
+<pre><code>## [1] &quot;The parallel process ran 3% faster using 2 R back ends.&quot;</code></pre>
 <p>We did not save that much time (if any) by running in parallel. <code>ranger</code> already makes full use of our CPU. Running in parallel will save you time if you are using a high <code>meanMatchCandidates</code>, or if you are working with very large data and using a low <code>num.trees</code>.</p>
 </div>
 <div id="adding-more-iterationsdatasets" class="section level3">
